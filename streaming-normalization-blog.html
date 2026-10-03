@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>One Table Too Many: Normalizing a Streaming Platform Database</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Literata:opsz,wght@7..72,400;7..72,600&family=Archivo:wght@500;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f2f5f6; --paper:#ffffff; --ink:#16232b; --muted:#566872;
+  --rule:#cfd9de; --accent:#0b6e75; --bad:#b3261e; --badbg:#fbeceb; --good:#1b6b3a; --goodbg:#e8f4ec;
+  --code:#e9eff1;
+}
+@media (prefers-color-scheme:dark){
+  :root{--bg:#10181c;--paper:#172229;--ink:#e6eef1;--muted:#93a7b0;--rule:#2b3b44;--accent:#4fc3cc;--bad:#ff8a80;--badbg:#3a1f1e;--good:#7fd69b;--goodbg:#173325;--code:#0e171b}
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:Literata,Georgia,serif;font-size:18px;line-height:1.7}
+a{color:var(--accent)}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+header.top{border-bottom:1px solid var(--rule);background:var(--paper)}
+.wrap{max-width:760px;margin:0 auto;padding:0 20px}
+.bar{display:flex;justify-content:space-between;align-items:center;padding:14px 0;font-family:Archivo,Arial,sans-serif;font-weight:700}
+.bar nav{display:flex;gap:18px;font-weight:500;font-size:15px}
+.bar nav a{color:var(--muted);text-decoration:none}
+.bar nav a:hover{color:var(--accent)}
+.hero{padding:56px 0 36px}
+.hero h1{font-family:Archivo,Arial,sans-serif;font-weight:800;font-size:clamp(2.2rem,6vw,3.6rem);line-height:1.05;letter-spacing:-.02em;margin:0 0 18px}
+.hero p.lead{font-size:1.2rem;color:var(--muted);margin:0 0 18px}
+.meta{font-family:Archivo,Arial,sans-serif;font-size:14px;color:var(--muted)}
+.hero-strip{margin:28px 0 0;padding:16px 18px;background:var(--paper);border:1px solid var(--rule);border-left:6px solid var(--bad);font-family:'JetBrains Mono',monospace;font-size:13px;overflow-x:auto;white-space:pre}
+article h2{font-family:Archivo,Arial,sans-serif;font-weight:800;font-size:1.7rem;letter-spacing:-.01em;line-height:1.2;margin:56px 0 14px;scroll-margin-top:16px}
+article h3{font-family:Archivo,Arial,sans-serif;font-weight:700;font-size:1.15rem;margin:30px 0 8px}
+article p{margin:0 0 16px}
+.toc{background:var(--paper);border:1px solid var(--rule);padding:16px 22px;margin:8px 0 0;font-family:Archivo,Arial,sans-serif;font-size:15px}
+.toc ol{margin:6px 0 0;padding-left:20px}
+.toc a{text-decoration:none}
+.scroll{overflow-x:auto;margin:14px 0 22px;border:1px solid var(--rule);background:var(--paper)}
+table{border-collapse:collapse;width:100%;font-family:'JetBrains Mono',monospace;font-size:12.5px;line-height:1.4}
+th,td{padding:7px 10px;text-align:left;border-bottom:1px solid var(--rule);white-space:nowrap}
+th{background:var(--code);font-weight:500}
+.pk{text-decoration:underline;text-underline-offset:3px;text-decoration-thickness:2px}
+td.dup{background:var(--badbg);color:var(--bad)}
+caption{caption-side:top;text-align:left;padding:8px 10px;font-family:Archivo,Arial,sans-serif;font-size:14px;font-weight:700;color:var(--muted)}
+.box{padding:14px 18px;margin:18px 0;border-left:6px solid var(--rule);background:var(--paper)}
+.box.bad{border-left-color:var(--bad);background:var(--badbg)}
+.box.good{border-left-color:var(--good);background:var(--goodbg)}
+.box p:last-child{margin:0}
+.fd{font-family:'JetBrains Mono',monospace;font-size:14px;background:var(--paper);border:1px solid var(--rule);padding:14px 18px;margin:14px 0 22px;overflow-x:auto;white-space:pre;line-height:1.9}
+code{font-family:'JetBrains Mono',monospace;font-size:.85em;background:var(--code);padding:1px 5px}
+pre{font-family:'JetBrains Mono',monospace;font-size:13px;background:var(--code);padding:16px 18px;overflow-x:auto;line-height:1.55;margin:14px 0 22px}
+.rel{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:0;border:1px solid var(--rule);background:var(--paper);margin:14px 0 22px}
+.rel div{padding:14px 16px;border-right:1px solid var(--rule);border-bottom:1px solid var(--rule);font-size:15px;line-height:1.5}
+.rel b{font-family:Archivo,Arial,sans-serif;display:block}
+footer{border-top:1px solid var(--rule);margin-top:64px;padding:28px 0 48px;font-family:Archivo,Arial,sans-serif;font-size:14px;color:var(--muted)}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+</style>
+</head>
+<body>
+<header class="top"><div class="wrap bar">
+  <span>Schema Notes</span>
+  <nav><a href="#problem">The problem</a><a href="#normalize">Normalization</a><a href="#design">Final design</a></nav>
+</div></header>
+
+<main class="wrap">
+<div class="hero">
+  <h1>One table too many rows: normalizing a streaming platform database</h1>
+  <p class="lead">What happens when a Netflix- or YouTube-style service stores everything in a single watch-history table, and how normal forms fix it.</p>
+  <div class="meta">Database design case study &middot; about 10 minute read</div>
+  <div class="hero-strip">user_name   plan      price  title        creator       genre
+Asha Rao    Premium   649    Dark Orbit   Nova Studios  Sci-Fi, Thriller
+Asha Rao    Premium   649    Dark Orbit   Nova Studios  Sci-Fi, Thriller
+Asha Rao    Premium   649    Quiet Hills  Nova Studios  Drama
+(the same facts, typed again and again)</div>
+</div>
+
+<article>
+<div class="toc"><strong>In this post</strong>
+<ol>
+  <li><a href="#entities">Entities and relationships</a></li>
+  <li><a href="#problem">The redundant design</a></li>
+  <li><a href="#anomalies">Anomalies it causes</a></li>
+  <li><a href="#fds">Functional dependencies</a></li>
+  <li><a href="#normalize">Applying 1NF, 2NF, 3NF and BCNF</a></li>
+  <li><a href="#design">The normalized design</a></li>
+  <li><a href="#wrap">Trade-offs and takeaways</a></li>
+</ol></div>
+
+<p style="margin-top:28px">A streaming platform tracks people, plans, videos, creators, genres and every minute anyone watches. It is tempting to dump all of that into one wide table because it is easy to query at first. This post shows why that choice becomes expensive, and walks step by step to a clean design. The examples use a simplified model that applies equally to Netflix (studios and titles) or YouTube (channels and videos).</p>
+
+<h2 id="entities">1. Entities and relationships</h2>
+<p>Start with the real-world things the platform cares about, before thinking about tables.</p>
+<div class="rel">
+  <div><b>User</b>A person with an account, name and email.</div>
+  <div><b>Plan</b>A subscription tier with a name and monthly price.</div>
+  <div><b>Creator</b>A studio or channel that publishes videos.</div>
+  <div><b>Video</b>A title with a duration, owned by one creator.</div>
+  <div><b>Genre</b>A category such as Drama or Sci-Fi.</div>
+  <div><b>Watch event</b>A user watching a video at a point in time.</div>
+</div>
+<p>The relationships between them:</p>
+<ul>
+  <li>A plan has many users; each user is on one plan (<em>1 : N</em>).</li>
+  <li>A creator publishes many videos; each video has one creator (<em>1 : N</em>).</li>
+  <li>A video can have many genres and a genre covers many videos (<em>M : N</em>).</li>
+  <li>Users and videos are linked many-to-many through watch events (<em>M : N</em>), and each event carries its own data such as seconds watched.</li>
+</ul>
+
+<h2 id="problem">2. The redundant design</h2>
+<p>The all-in-one version is a single table, <code>WATCH_LOG</code>, with one row per viewing:</p>
+<pre>WATCH_LOG(user_id, user_name, user_email, plan_id, plan_name, plan_price,
+          video_id, title, duration_min, genres,
+          creator_id, creator_name, watched_at, seconds_watched)</pre>
+<p>The candidate key is <code>(user_id, video_id, watched_at)</code>. Here is what some rows look like:</p>
+<div class="scroll"><table>
+<caption>WATCH_LOG (unnormalized)</caption>
+<tr><th>user_id</th><th>user_name</th><th>plan_name</th><th>plan_price</th><th>video_id</th><th>title</th><th>genres</th><th>creator_name</th><th>watched_at</th><th>secs</th></tr>
+<tr><td>U1</td><td class="dup">Asha Rao</td><td class="dup">Premium</td><td class="dup">649</td><td>V1</td><td class="dup">Dark Orbit</td><td class="dup">Sci-Fi, Thriller</td><td class="dup">Nova Studios</td><td>09-01 20:10</td><td>2400</td></tr>
+<tr><td>U1</td><td class="dup">Asha Rao</td><td class="dup">Premium</td><td class="dup">649</td><td>V1</td><td class="dup">Dark Orbit</td><td class="dup">Sci-Fi, Thriller</td><td class="dup">Nova Studios</td><td>09-02 21:00</td><td>1500</td></tr>
+<tr><td>U1</td><td class="dup">Asha Rao</td><td class="dup">Premium</td><td class="dup">649</td><td>V2</td><td>Quiet Hills</td><td>Drama</td><td class="dup">Nova Studios</td><td>09-03 19:30</td><td>3100</td></tr>
+<tr><td>U2</td><td>Ben Cole</td><td>Basic</td><td>199</td><td>V1</td><td class="dup">Dark Orbit</td><td class="dup">Sci-Fi, Thriller</td><td class="dup">Nova Studios</td><td>09-02 18:45</td><td>600</td></tr>
+</table></div>
+<p>The highlighted cells are repeated facts. A user's name is stored once per viewing, and a video's title and creator are stored once per viewer per viewing. On a real platform with billions of watch events, that is a large amount of wasted storage and, worse, many chances for the copies to disagree.</p>
+
+<h2 id="anomalies">3. Anomalies it causes</h2>
+<h3>Update anomaly</h3>
+<div class="box bad"><p>Nova Studios renames itself to Nova Pictures. Every row for every video it owns must change. If a job updates only some rows, the table now says the same creator has two names, and no query can tell which is right.</p></div>
+<h3>Insertion anomaly</h3>
+<div class="box bad"><p>A creator uploads a new video that nobody has watched yet. There is no row to put it in, because a row needs a <code>user_id</code> and <code>watched_at</code> to exist. Likewise a new user who has not watched anything cannot be recorded, and a new plan cannot be added until someone subscribes.</p></div>
+<h3>Deletion anomaly</h3>
+<div class="box bad"><p>Ben is the only viewer of a niche video and deletes his watch history. That row disappears, and the video's title, duration and creator vanish with it, even though the video still exists on the platform.</p></div>
+<h3>Other costs</h3>
+<p>Beyond the three classic anomalies, the genres column holds a list in one cell (<code>Sci-Fi, Thriller</code>), so finding all Thriller videos needs fragile text matching. Storage also grows with views rather than with content, which is the wrong thing to scale with.</p>
+
+<h2 id="fds">4. Functional dependencies</h2>
+<p>A functional dependency <code>X → Y</code> means that a value of X always determines exactly one value of Y. Reading the business rules gives us:</p>
+<div class="fd">FD1  user_id    → user_name, user_email, plan_id
+FD2  plan_id    → plan_name, plan_price
+FD3  video_id   → title, duration_min, creator_id
+FD4  creator_id → creator_name
+FD5  video_id  →→ genre            (multi-valued: one video, many genres)
+FD6  (user_id, video_id, watched_at) → seconds_watched</div>
+<p>Only FD6 depends on the whole key. Everything else depends on part of the key or on a non-key column, which is exactly where the redundancy comes from.</p>
+
+<h2 id="normalize">5. Applying the normal forms</h2>
+
+<h3>First normal form (1NF): atomic values</h3>
+<p><strong>Rule:</strong> every cell holds a single value, and there are no repeating groups.</p>
+<p><strong>Violation:</strong> <code>genres</code> stores <em>Sci-Fi, Thriller</em> in one cell (FD5).</p>
+<p><strong>Fix:</strong> store one genre per row, which is cleaner as its own table <code>VIDEO_GENRE(video_id, genre_id)</code> once we get to the end. After this step, the key of the main table is still <code>(user_id, video_id, watched_at)</code>.</p>
+
+<h3>Second normal form (2NF): no partial dependencies</h3>
+<p><strong>Rule:</strong> be in 1NF, and every non-key attribute must depend on the <em>whole</em> composite key.</p>
+<p><strong>Violations:</strong> user attributes depend only on <code>user_id</code> (FD1), and video attributes depend only on <code>video_id</code> (FD3). Each is a piece of the key, not the whole.</p>
+<p><strong>Fix:</strong> split the table into three:</p>
+<pre>USER(<u>user_id</u>, user_name, user_email, plan_id, plan_name, plan_price)
+VIDEO(<u>video_id</u>, title, duration_min, creator_id, creator_name)
+WATCH(<u>user_id, video_id, watched_at</u>, seconds_watched)</pre>
+<p>Now a user's name is stored once, and a video's title is stored once. But two problems remain inside USER and VIDEO.</p>
+
+<h3>Third normal form (3NF): no transitive dependencies</h3>
+<p><strong>Rule:</strong> be in 2NF, and no non-key attribute may depend on another non-key attribute.</p>
+<p><strong>Violations:</strong></p>
+<ul>
+  <li>In USER: <code>user_id → plan_id → plan_name, plan_price</code>. Price is really a fact about the plan.</li>
+  <li>In VIDEO: <code>video_id → creator_id → creator_name</code>. The name is really a fact about the creator.</li>
+</ul>
+<p><strong>Fix:</strong> move each transitive fact to a table of its own, keeping the key as a foreign key:</p>
+<pre>PLAN(<u>plan_id</u>, plan_name, plan_price)
+CREATOR(<u>creator_id</u>, creator_name)
+USER(<u>user_id</u>, user_name, user_email, plan_id <i>FK</i>)
+VIDEO(<u>video_id</u>, title, duration_min, creator_id <i>FK</i>)</pre>
+<div class="box good"><p>With this split, renaming a creator or changing a plan price is a one-row update, and a plan or creator can exist before it has any users or videos.</p></div>
+
+<h3>Boyce-Codd normal form (BCNF)</h3>
+<p><strong>Rule:</strong> for every functional dependency <code>X → Y</code>, X must be a superkey.</p>
+<p>Checking each table: in PLAN, CREATOR, USER and VIDEO the only determinant is the primary key. In WATCH the only determinant is the full composite key. <code>VIDEO_GENRE</code> has no non-key columns at all. Every determinant is a key, so the design is already in BCNF.</p>
+<p>One note on emails: if <code>user_email</code> must be unique, it is a second candidate key of USER, which still satisfies BCNF because the dependency <code>user_email → user_id</code> has a key on its left side.</p>
+
+<h2 id="design">6. The normalized design</h2>
+<div class="rel">
+  <div><b>PLAN</b>plan_id (PK), plan_name, monthly_price</div>
+  <div><b>USER_ACCOUNT</b>user_id (PK), user_name, email (unique), plan_id (FK)</div>
+  <div><b>CREATOR</b>creator_id (PK), creator_name</div>
+  <div><b>VIDEO</b>video_id (PK), title, duration_min, creator_id (FK)</div>
+  <div><b>GENRE</b>genre_id (PK), genre_name</div>
+  <div><b>VIDEO_GENRE</b>video_id (FK), genre_id (FK), composite PK</div>
+  <div><b>WATCH_EVENT</b>user_id (FK), video_id (FK), watched_at, seconds_watched; composite PK</div>
+</div>
+<p>As SQL:</p>
+<pre>CREATE TABLE plan (
+  plan_id INT PRIMARY KEY,
+  plan_name VARCHAR(40) NOT NULL,
+  monthly_price DECIMAL(8,2) NOT NULL
+);
+CREATE TABLE user_account (
+  user_id INT PRIMARY KEY,
+  user_name VARCHAR(80) NOT NULL,
+  email VARCHAR(120) UNIQUE NOT NULL,
+  plan_id INT NOT NULL REFERENCES plan(plan_id)
+);
+CREATE TABLE creator (
+  creator_id INT PRIMARY KEY,
+  creator_name VARCHAR(80) NOT NULL
+);
+CREATE TABLE video (
+  video_id INT PRIMARY KEY,
+  title VARCHAR(120) NOT NULL,
+  duration_min INT NOT NULL,
+  creator_id INT NOT NULL REFERENCES creator(creator_id)
+);
+CREATE TABLE genre (
+  genre_id INT PRIMARY KEY,
+  genre_name VARCHAR(40) UNIQUE NOT NULL
+);
+CREATE TABLE video_genre (
+  video_id INT REFERENCES video(video_id),
+  genre_id INT REFERENCES genre(genre_id),
+  PRIMARY KEY (video_id, genre_id)
+);
+CREATE TABLE watch_event (
+  user_id INT REFERENCES user_account(user_id),
+  video_id INT REFERENCES video(video_id),
+  watched_at TIMESTAMP,
+  seconds_watched INT NOT NULL,
+  PRIMARY KEY (user_id, video_id, watched_at)
+);</pre>
+<p>To rebuild the original wide view, join the tables back together:</p>
+<pre>SELECT u.user_name, p.plan_name, v.title, c.creator_name, w.seconds_watched
+FROM watch_event w
+JOIN user_account u ON u.user_id = w.user_id
+JOIN plan p         ON p.plan_id = u.plan_id
+JOIN video v        ON v.video_id = w.video_id
+JOIN creator c      ON c.creator_id = v.creator_id;</pre>
+
+<h3>Anomalies, revisited</h3>
+<div class="scroll"><table>
+<tr><th>Problem</th><th>Before</th><th>After</th></tr>
+<tr><td>Rename a creator</td><td>Update thousands of rows</td><td>Update 1 row in CREATOR</td></tr>
+<tr><td>Add an unwatched video</td><td>Impossible</td><td>Insert into VIDEO</td></tr>
+<tr><td>Delete a watch history</td><td>Loses video details</td><td>Only WATCH_EVENT rows go</td></tr>
+<tr><td>Find all Thrillers</td><td>Text search in a list</td><td>Join on VIDEO_GENRE</td></tr>
+</table></div>
+
+<h2 id="wrap">7. Trade-offs and takeaways</h2>
+<p>Normalization is not free. Queries need more joins, and at the scale of a real streaming service some read-heavy paths, such as a home-page recommendation feed, are often deliberately <em>denormalized</em> into caches or analytics stores for speed. The key point is that this is done on purpose, as a copy derived from a clean source of truth, rather than by accident in the core transactional database.</p>
+<ul>
+  <li>Identify entities and relationships first, then derive functional dependencies from real business rules.</li>
+  <li>Redundancy shows up as update, insertion and deletion anomalies.</li>
+  <li>1NF removes repeating values, 2NF removes partial dependencies, 3NF removes transitive ones, and BCNF makes sure every determinant is a key.</li>
+  <li>The result here is seven small, well-keyed tables where each fact is stored in exactly one place.</li>
+</ul>
+</article>
+</main>
+<footer><div class="wrap">Written as a database design case study. The data and schema are simplified examples, not any company's actual systems.</div></footer>
+</body>
+</html>
