@@ -1,0 +1,327 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Normalizing the Cart</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: single reading column (~68ch), wide tables and code scroll inside their own boxes. Ledger-style tables are the signature element. */
+:root {
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --fg: #1b2230;
+  --muted: #5b6577;
+  --line: #d9dee7;
+  --accent: #1f4fd8;
+  --bad-bg: #fdecea;
+  --bad-fg: #a1261b;
+  --good-bg: #e5f5ec;
+  --good-fg: #17683a;
+  --code-bg: #eef1f6;
+  --font-display: "Bricolage Grotesque", "Helvetica Neue", Arial, sans-serif;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #11151d; --surface: #181d28; --fg: #e6e9f0; --muted: #98a2b5; --line: #2b3342;
+    --accent: #7fa0ff; --bad-bg: #3a1c1a; --bad-fg: #ff9d92; --good-bg: #16301f; --good-fg: #84d9a4;
+    --code-bg: #1e2431; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #11151d; --surface: #181d28; --fg: #e6e9f0; --muted: #98a2b5; --line: #2b3342;
+  --accent: #7fa0ff; --bad-bg: #3a1c1a; --bad-fg: #ff9d92; --good-bg: #16301f; --good-fg: #84d9a4;
+  --code-bg: #1e2431; color-scheme: dark;
+}
+body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 17px; line-height: 1.65; }
+.wrap { max-width: 44rem; margin: 0 auto; padding-inline: 16px; padding-block: 40px 72px; }
+header { display: flex; flex-direction: column; gap: 14px; padding-bottom: 28px; border-bottom: 1px solid var(--line); margin-bottom: 8px; }
+.kicker { font-family: var(--font-mono); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+h1 { font-family: var(--font-display); font-weight: 700; font-size: clamp(2.2rem, 7vw, 3.4rem); line-height: 1.05; letter-spacing: -.02em; margin: 0; text-wrap: balance; }
+.dek { font-size: 1.15rem; color: var(--muted); margin: 0; }
+.meta { font-size: 13px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 6px 16px; }
+h2 { font-family: var(--font-display); font-weight: 600; font-size: 1.7rem; line-height: 1.15; letter-spacing: -.01em; margin: 52px 0 6px; text-wrap: balance; }
+h3 { font-family: var(--font-display); font-weight: 600; font-size: 1.2rem; margin: 30px 0 0; }
+p { margin: 14px 0 0; }
+ul, ol { margin: 14px 0 0; padding-left: 1.3em; }
+li { margin-top: 6px; }
+a { color: var(--accent); }
+code { font-family: var(--font-mono); font-size: .88em; background: var(--code-bg); padding: 1px 5px; border-radius: 3px; }
+pre { font-family: var(--font-mono); font-size: 13.5px; line-height: 1.55; background: var(--code-bg); border-radius: 6px; padding: 14px 16px; margin: 16px 0 0; overflow-x: auto; }
+pre code { background: none; padding: 0; font-size: inherit; }
+.scroll { overflow-x: auto; margin-top: 16px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 14px; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+tr:last-child td { border-bottom: 0; }
+th { font-family: var(--font-mono); font-size: 11.5px; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); font-weight: 500; background: var(--code-bg); }
+td.num, th.num { text-align: right; }
+td.wrap-ok { white-space: normal; min-width: 14rem; }
+.cap { font-size: 13px; color: var(--muted); margin-top: 8px; }
+.bad { background: var(--bad-bg); color: var(--bad-fg); }
+.good { background: var(--good-bg); color: var(--good-fg); }
+.flag { padding: 1px 6px; border-radius: 3px; font-weight: 500; }
+.note { margin-top: 20px; padding: 14px 16px; border-radius: 6px; background: var(--surface); border: 1px solid var(--line); font-size: 15.5px; }
+.note b.label { display: block; font-family: var(--font-mono); font-size: 11.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--accent); margin-bottom: 4px; font-weight: 500; }
+.fd { font-family: var(--font-mono); font-size: 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 12px 16px; margin-top: 16px; display: flex; flex-direction: column; gap: 6px; overflow-x: auto; }
+.fd span { white-space: nowrap; }
+.fd i { font-style: normal; color: var(--accent); }
+.mermaid { margin-top: 16px; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 12px; overflow-x: auto; font-size: 14px; }
+.entities { display: grid; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); gap: 10px; margin-top: 16px; padding: 0; list-style: none; }
+.entities li { margin: 0; padding: 10px 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; font-size: 14.5px; line-height: 1.45; min-width: 0; }
+.entities strong { display: block; font-family: var(--font-mono); font-size: 13px; font-weight: 500; }
+.er .box { fill: var(--surface); stroke: var(--line); stroke-width: 1.2; }
+.er .head { fill: var(--code-bg); stroke: var(--line); stroke-width: 1.2; }
+.er .rel { stroke: var(--muted); stroke-width: 1.4; }
+.er .tname { font-family: var(--font-mono); font-size: 13px; font-weight: 500; fill: var(--accent); }
+.er .field { font-family: var(--font-mono); font-size: 11.5px; fill: var(--fg); }
+.er .card { font-family: var(--font-mono); font-size: 12px; font-weight: 500; fill: var(--accent); }
+footer { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--line); font-size: 14px; color: var(--muted); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+</style>
+
+<div class="wrap">
+<header>
+  <div class="kicker">Database design · E-commerce case study</div>
+  <h1>Normalizing the Cart</h1>
+  <p class="dek">How a marketplace like Amazon or Flipkart should split its data into tables, and what breaks when it does not.</p>
+  <div class="meta"><span>Topic: functional dependencies, 1NF to BCNF</span><span>About 9 minute read</span></div>
+</header>
+
+<p>Every time you place an order, a shop has to remember who you are, what you bought, who sold it, what it cost and where it is going. The question is where each of those facts is written down. If the same fact lives in many places, the places will eventually disagree. Normalization is the discipline of making sure each fact is stored once, in the one place that owns it.</p>
+<p>This post walks through the whole exercise on a marketplace order system: find the entities, write down the functional dependencies, spot the redundancy and the anomalies it causes, then rebuild the schema in third normal form.</p>
+
+<h2>1. Start with the entities</h2>
+<p>An entity is a thing the business keeps records about. Reading the checkout flow of a marketplace gives a short list.</p>
+<ul class="entities">
+  <li><strong>Customer</strong>Person with an account, email and phone.</li>
+  <li><strong>Address</strong>A delivery address. One customer has several.</li>
+  <li><strong>Category</strong>Electronics, Home, Books. Can be nested.</li>
+  <li><strong>Product</strong>The item in the catalogue, such as a particular earbud model.</li>
+  <li><strong>Seller</strong>A business that sells on the platform.</li>
+  <li><strong>Listing</strong>One seller's offer for one product, with its own price and stock.</li>
+  <li><strong>Order</strong>A purchase placed by a customer on a date.</li>
+  <li><strong>Order item</strong>One line of an order: which listing, how many, at what price.</li>
+  <li><strong>Payment</strong>How and when an order was paid.</li>
+</ul>
+<p class="cap">Shipments and reviews are further entities in the real systems. They follow the same pattern, so this post leaves them out.</p>
+
+<h2>2. The table everyone builds first</h2>
+<p>A common first attempt is to put everything about an order on one row. It looks convenient because one query returns everything the order page needs. Here is a trimmed version, called <code>order_flat</code>, with the primary key <code>(order_id, product_id, seller_id)</code>.</p>
+<div class="scroll"><table>
+  <thead><tr><th>order_id</th><th>customer_id</th><th>customer_name</th><th>city</th><th>product_id</th><th>product_name</th><th>category</th><th>seller_id</th><th>seller_name</th><th class="num">qty</th><th class="num">unit_price (₹)</th></tr></thead>
+  <tbody>
+    <tr><td>1001</td><td>C01</td><td>Asha Rao</td><td>Pune</td><td>P10</td><td><span class="flag bad">boAt Airdopes 121</span></td><td>Electronics</td><td>S5</td><td>SoundHub</td><td class="num">1</td><td class="num">1,499</td></tr>
+    <tr><td>1001</td><td>C01</td><td>Asha Rao</td><td>Pune</td><td>P22</td><td>USB-C Cable 1m</td><td>Accessories</td><td>S7</td><td>CableCo</td><td class="num">2</td><td class="num">199</td></tr>
+    <tr><td>1002</td><td>C02</td><td>Ravi Shah</td><td>Mumbai</td><td>P10</td><td><span class="flag bad">Boat Airdopes 121</span></td><td>Electronics</td><td>S5</td><td>SoundHub</td><td class="num">1</td><td class="num">1,399</td></tr>
+    <tr><td>1003</td><td>C01</td><td>Asha Rao</td><td>Pune</td><td>P31</td><td>Steel Water Bottle</td><td>Home</td><td>S9</td><td>HomeKart</td><td class="num">1</td><td class="num">449</td></tr>
+  </tbody>
+</table></div>
+<p class="cap">Product P10 has two different names in the highlighted cells. That is the first symptom.</p>
+<p>Note that the unit price differs between orders 1001 and 1002 for the same product. That is not an error. A price changes over time, and an order must remember the price that was paid. We come back to this in section 6.</p>
+
+<h2>3. Functional dependencies</h2>
+<p>A functional dependency <code>A → B</code> means that if you know A, there is exactly one possible B. These come from business rules, not from the data that happens to be in the table today. For the table above, the rules are:</p>
+<div class="fd">
+  <span>order_id <i>→</i> customer_id, order_date</span>
+  <span>customer_id <i>→</i> customer_name, city</span>
+  <span>product_id <i>→</i> product_name, category</span>
+  <span>seller_id <i>→</i> seller_name</span>
+  <span>(order_id, product_id, seller_id) <i>→</i> qty, unit_price</span>
+</div>
+<p>Only the last line depends on the whole key. Everything else depends on a part of the key or on another non-key column. That mismatch is exactly what normal forms measure.</p>
+<div class="note"><b class="label">Assumption to revisit</b>The flat table treats <code>product_id → seller_id</code> as true, meaning one seller per product. On Amazon and Flipkart the same product is sold by many sellers at different prices, so that dependency does not hold in the real system. We fix this with a listing table in section 5.</div>
+
+<h2>4. What goes wrong: anomalies</h2>
+<h3>Update anomaly</h3>
+<p>Asha Rao moves from Pune to Bengaluru. Her city is stored on every order row she ever placed, so the update has to touch all of them. If a script misses one, the database now says she lives in two cities. The earbuds in the table already show the same problem: the product name was edited in some rows and not others, so a search for "boAt" finds one order and misses the other.</p>
+<h3>Insert anomaly</h3>
+<p>A new seller registers and lists a product. With this table you cannot record the product or the seller until somebody orders it, because <code>order_id</code> is part of the primary key and cannot be empty. The catalogue cannot exist without orders.</p>
+<h3>Delete anomaly</h3>
+<p>Order 1003 is cancelled and its row is deleted. It was the only row mentioning product P31 and seller S9, so the water bottle and HomeKart vanish from the system along with the order.</p>
+<h3>Other costs of redundancy</h3>
+<ul>
+  <li><strong>Wasted storage.</strong> A customer's name and address repeat on every line of every order. For millions of orders this is large, and it also slows scans.</li>
+  <li><strong>Inconsistent values.</strong> "Electronics", "electronics" and "Electronic" become three categories in reports.</li>
+  <li><strong>Hard-to-trust analytics.</strong> Revenue by seller depends on which spelling of the seller name each row happens to carry.</li>
+</ul>
+
+<h2>5. Normalizing step by step</h2>
+<h3>First normal form (1NF): atomic values, no repeating groups</h3>
+<p>Each cell holds one value. A design that stores <code>items = "P10, P22"</code> in one cell, or <code>phone1, phone2, phone3</code> as columns, breaks 1NF. You cannot join, count or index a list hidden in a text cell. The flat table above already has one product per row, so it satisfies 1NF. Customer phone numbers would move to a child table if a customer may have several.</p>
+
+<h3>Second normal form (2NF): no partial dependencies</h3>
+<p>The table must be in 1NF, and every non-key column must depend on the whole primary key. With the composite key <code>(order_id, product_id, seller_id)</code>, three groups fail:</p>
+<ul>
+  <li><code>customer_id</code>, <code>customer_name</code>, <code>city</code> and <code>order_date</code> depend on <code>order_id</code> alone.</li>
+  <li><code>product_name</code> and <code>category</code> depend on <code>product_id</code> alone.</li>
+  <li><code>seller_name</code> depends on <code>seller_id</code> alone.</li>
+</ul>
+<p>Move each group to its own table keyed by the part it depends on. That leaves <code>order_items(order_id, product_id, seller_id, qty, unit_price)</code> holding only what depends on the full key.</p>
+
+<h3>Third normal form (3NF): no transitive dependencies</h3>
+<p>The table must be in 2NF, and no non-key column may depend on another non-key column. One chain remains:</p>
+<ul>
+  <li><code>order_id → customer_id → customer_name, city</code>: customer details belong in <code>customers</code>.</li>
+  <li><code>product_id → product_name, category</code> and <code>seller_id → seller_name</code>: product and seller details belong in their respective tables.</li>
+</ul>
+<h3>Boyce-Codd normal form (BCNF)</h3>
+<p>BCNF is stricter: for every dependency <code>A → B</code>, A must be a candidate key. In the schema below every determinant is a key, so it is also in BCNF. BCNF violations usually appear only when a table has several overlapping candidate keys, which is rare in a design like this.</p>
+
+<h2>6. The normalized schema</h2>
+<div class="scroll"><svg class="er" viewBox="0 0 760 440" role="img" aria-label="Entity relationship diagram of the normalized e-commerce schema" style="min-width:640px;width:100%;height:auto;display:block">
+<line x1="220" y1="70" x2="280" y2="70" class="rel"/>
+<line x1="480" y1="70" x2="540" y2="70" class="rel"/>
+<line x1="120" y1="120" x2="120" y2="170" class="rel"/>
+<line x1="380" y1="120" x2="380" y2="170" class="rel"/>
+<line x1="380" y1="270" x2="380" y2="320" class="rel"/>
+<line x1="220" y1="370" x2="280" y2="370" class="rel"/>
+<line x1="540" y1="370" x2="480" y2="370" class="rel"/>
+<line x1="640" y1="270" x2="640" y2="320" class="rel"/>
+<text x="232" y="62" class="card" text-anchor="middle">1</text>
+<text x="268" y="62" class="card" text-anchor="middle">N</text>
+<text x="492" y="62" class="card" text-anchor="middle">1</text>
+<text x="528" y="62" class="card" text-anchor="middle">N</text>
+<text x="130" y="138" class="card" text-anchor="middle">1</text>
+<text x="130" y="164" class="card" text-anchor="middle">N</text>
+<text x="390" y="138" class="card" text-anchor="middle">1</text>
+<text x="390" y="164" class="card" text-anchor="middle">N</text>
+<text x="390" y="288" class="card" text-anchor="middle">N</text>
+<text x="390" y="314" class="card" text-anchor="middle">1</text>
+<text x="232" y="362" class="card" text-anchor="middle">1</text>
+<text x="268" y="362" class="card" text-anchor="middle">N</text>
+<text x="528" y="362" class="card" text-anchor="middle">1</text>
+<text x="492" y="362" class="card" text-anchor="middle">N</text>
+<text x="650" y="288" class="card" text-anchor="middle">1</text>
+<text x="650" y="314" class="card" text-anchor="middle">N</text>
+<rect x="20" y="20" width="200" height="100" rx="4" class="box"/>
+<path d="M20 46 V24 a4 4 0 0 1 4 -4 H216 a4 4 0 0 1 4 4 V46 Z" class="head"/>
+<text x="30" y="38" class="tname">customers</text>
+<text x="30" y="66" class="field">customer_id (PK)</text>
+<text x="30" y="86" class="field">name</text>
+<text x="30" y="106" class="field">email</text>
+<rect x="280" y="20" width="200" height="100" rx="4" class="box"/>
+<path d="M280 46 V24 a4 4 0 0 1 4 -4 H476 a4 4 0 0 1 4 4 V46 Z" class="head"/>
+<text x="290" y="38" class="tname">orders</text>
+<text x="290" y="66" class="field">order_id (PK)</text>
+<text x="290" y="86" class="field">customer_id (FK)</text>
+<text x="290" y="106" class="field">address_id (FK)</text>
+<rect x="540" y="20" width="200" height="100" rx="4" class="box"/>
+<path d="M540 46 V24 a4 4 0 0 1 4 -4 H736 a4 4 0 0 1 4 4 V46 Z" class="head"/>
+<text x="550" y="38" class="tname">payments</text>
+<text x="550" y="66" class="field">payment_id (PK)</text>
+<text x="550" y="86" class="field">order_id (FK)</text>
+<text x="550" y="106" class="field">amount</text>
+<rect x="20" y="170" width="200" height="100" rx="4" class="box"/>
+<path d="M20 196 V174 a4 4 0 0 1 4 -4 H216 a4 4 0 0 1 4 4 V196 Z" class="head"/>
+<text x="30" y="188" class="tname">addresses</text>
+<text x="30" y="216" class="field">address_id (PK)</text>
+<text x="30" y="236" class="field">customer_id (FK)</text>
+<text x="30" y="256" class="field">city</text>
+<rect x="280" y="170" width="200" height="100" rx="4" class="box"/>
+<path d="M280 196 V174 a4 4 0 0 1 4 -4 H476 a4 4 0 0 1 4 4 V196 Z" class="head"/>
+<text x="290" y="188" class="tname">order_items</text>
+<text x="290" y="216" class="field">order_id, listing_id (PK)</text>
+<text x="290" y="236" class="field">quantity</text>
+<text x="290" y="256" class="field">unit_price</text>
+<rect x="540" y="170" width="200" height="100" rx="4" class="box"/>
+<path d="M540 196 V174 a4 4 0 0 1 4 -4 H736 a4 4 0 0 1 4 4 V196 Z" class="head"/>
+<text x="550" y="188" class="tname">categories</text>
+<text x="550" y="216" class="field">category_id (PK)</text>
+<text x="550" y="236" class="field">name</text>
+<text x="550" y="256" class="field">parent_id (FK)</text>
+<rect x="20" y="320" width="200" height="100" rx="4" class="box"/>
+<path d="M20 346 V324 a4 4 0 0 1 4 -4 H216 a4 4 0 0 1 4 4 V346 Z" class="head"/>
+<text x="30" y="338" class="tname">sellers</text>
+<text x="30" y="366" class="field">seller_id (PK)</text>
+<text x="30" y="386" class="field">name</text>
+<rect x="280" y="320" width="200" height="100" rx="4" class="box"/>
+<path d="M280 346 V324 a4 4 0 0 1 4 -4 H476 a4 4 0 0 1 4 4 V346 Z" class="head"/>
+<text x="290" y="338" class="tname">listings</text>
+<text x="290" y="366" class="field">listing_id (PK)</text>
+<text x="290" y="386" class="field">product_id, seller_id (FK)</text>
+<text x="290" y="406" class="field">price, stock</text>
+<rect x="540" y="320" width="200" height="100" rx="4" class="box"/>
+<path d="M540 346 V324 a4 4 0 0 1 4 -4 H736 a4 4 0 0 1 4 4 V346 Z" class="head"/>
+<text x="550" y="338" class="tname">products</text>
+<text x="550" y="366" class="field">product_id (PK)</text>
+<text x="550" y="386" class="field">name</text>
+<text x="550" y="406" class="field">category_id (FK)</text>
+</svg></div>
+<p class="cap">1 means one, N means many. PK is the primary key and FK is a foreign key. Each line reads from the "1" side to the "N" side, for example one customer places many orders.</p>
+<pre><code>CREATE TABLE customers (
+  customer_id  BIGINT PRIMARY KEY,
+  name         TEXT NOT NULL,
+  email        TEXT NOT NULL UNIQUE,
+  phone        TEXT
+);
+
+CREATE TABLE addresses (
+  address_id   BIGINT PRIMARY KEY,
+  customer_id  BIGINT NOT NULL REFERENCES customers,
+  line1        TEXT NOT NULL,
+  city         TEXT NOT NULL,
+  state        TEXT NOT NULL,
+  pincode      CHAR(6) NOT NULL
+);
+
+CREATE TABLE categories (
+  category_id  INT PRIMARY KEY,
+  name         TEXT NOT NULL UNIQUE,
+  parent_id    INT REFERENCES categories
+);
+
+CREATE TABLE products (
+  product_id   BIGINT PRIMARY KEY,
+  name         TEXT NOT NULL,
+  category_id  INT NOT NULL REFERENCES categories
+);
+
+CREATE TABLE sellers (
+  seller_id    BIGINT PRIMARY KEY,
+  name         TEXT NOT NULL
+);
+
+-- One seller's offer for one product: same product, many sellers
+CREATE TABLE listings (
+  listing_id   BIGINT PRIMARY KEY,
+  product_id   BIGINT NOT NULL REFERENCES products,
+  seller_id    BIGINT NOT NULL REFERENCES sellers,
+  price        NUMERIC(10,2) NOT NULL,   -- current price
+  stock        INT NOT NULL CHECK (stock &gt;= 0),
+  UNIQUE (product_id, seller_id)
+);
+
+CREATE TABLE orders (
+  order_id     BIGINT PRIMARY KEY,
+  customer_id  BIGINT NOT NULL REFERENCES customers,
+  address_id   BIGINT NOT NULL REFERENCES addresses,
+  ordered_at   TIMESTAMPTZ NOT NULL,
+  status       TEXT NOT NULL
+);
+
+CREATE TABLE order_items (
+  order_id     BIGINT REFERENCES orders,
+  listing_id   BIGINT REFERENCES listings,
+  quantity     INT NOT NULL CHECK (quantity &gt; 0),
+  unit_price   NUMERIC(10,2) NOT NULL,   -- price paid at order time
+  PRIMARY KEY (order_id, listing_id)
+);
+
+CREATE TABLE payments (
+  payment_id   BIGINT PRIMARY KEY,
+  order_id     BIGINT NOT NULL REFERENCES orders,
+  method       TEXT NOT NULL,
+  amount       NUMERIC(10,2) NOT NULL,
+  status       TEXT NOT NULL
+);</code></pre>
+
+<div class="note"><b class="label">Why unit_price appears twice</b><code>listings.price</code> is today's price and changes. <code>order_items.unit_price</code> is a historical fact: what this customer paid on that day. They answer different questions, so storing both is not redundancy. Dropping the second column would silently rewrite old invoices every time a seller changed a price. The same thinking applies to the shipping address, which in production is often copied into the order or made immutable so that editing an address does not alter past orders.</div>
+
+<h2>7. Why it improves consistency, and what it costs</h2>
+<p>With the normalized schema, each fact has one home. A customer's new city, a renamed product or a corrected category is a single-row update that every order and report sees at once. Foreign keys, <code>UNIQUE</code> and <code>CHECK</code> constraints make the database reject bad data itself, and a product can be added, or an order cancelled, without losing anything else.</p>
+<p>The cost is joins: rebuilding an order page touches orders, items, listings, products, sellers and addresses. Large marketplaces handle this by copying data on purpose, for example into a search index or an order-history view. Those copies are generated from the normalized tables, which stay as the source of truth. Normalize first, then denormalize only where measurements show a real read bottleneck.</p>
+
+<footer>Written for a database design course exercise on e-commerce schemas. Table and column names are illustrative, not taken from any real company's system.</footer>
+</div>
+
+</body></html>
