@@ -149,7 +149,7 @@ FD6  (user_id, video_id, watched_at) → seconds_watched</div>
 <h3>First normal form (1NF): atomic values</h3>
 <p><strong>Rule:</strong> every cell holds a single value, and there are no repeating groups.</p>
 <p><strong>Violation:</strong> <code>genres</code> stores <em>Sci-Fi, Thriller</em> in one cell (FD5).</p>
-<p><strong>Fix:</strong> store one genre per row, which is cleaner as its own table <code>VIDEO_GENRE(video_id, genre_id)</code> once we get to the end. After this step, the key of the main table is still <code>(user_id, video_id, watched_at)</code>.</p>
+<p><strong>Fix:</strong> Separate the multi-valued genre attribute from the watch data. Each video can then be associated with multiple genres through a separate VIDEO_GENRE table. This keeps each value atomic without duplicating watch events</p>
 
 <h3>Second normal form (2NF): no partial dependencies</h3>
 <p><strong>Rule:</strong> be in 1NF, and every non-key attribute must depend on the <em>whole</em> composite key.</p>
@@ -157,7 +157,7 @@ FD6  (user_id, video_id, watched_at) → seconds_watched</div>
 <p><strong>Fix:</strong> split the table into three:</p>
 <pre>USER(<u>user_id</u>, user_name, user_email, plan_id, plan_name, plan_price)
 VIDEO(<u>video_id</u>, title, duration_min, creator_id, creator_name)
-WATCH(<u>user_id, video_id, watched_at</u>, seconds_watched)</pre>
+WATCH_EVENT(<u>user_id, video_id, watched_at</u>, seconds_watched)</pre>
 <p>Now a user's name is stored once, and a video's title is stored once. But two problems remain inside USER and VIDEO.</p>
 
 <h3>Third normal form (3NF): no transitive dependencies</h3>
@@ -243,7 +243,9 @@ JOIN creator c      ON c.creator_id = v.creator_id;</pre>
 <tr><td>Delete a watch history</td><td>Loses video details</td><td>Only WATCH_EVENT rows go</td></tr>
 <tr><td>Find all Thrillers</td><td>Text search in a list</td><td>Join on VIDEO_GENRE</td></tr>
 </table></div>
-
+<div >
+  <img src="flowchart.jpeg" alt="help" style="height: 400px;">
+</div>
 <h2 id="wrap">7. Trade-offs and takeaways</h2>
 <p>Normalization is not free. Queries need more joins, and at the scale of a real streaming service some read-heavy paths, such as a home-page recommendation feed, are often deliberately <em>denormalized</em> into caches or analytics stores for speed. The key point is that this is done on purpose, as a copy derived from a clean source of truth, rather than by accident in the core transactional database.</p>
 <ul>
@@ -252,6 +254,7 @@ JOIN creator c      ON c.creator_id = v.creator_id;</pre>
   <li>1NF removes repeating values, 2NF removes partial dependencies, 3NF removes transitive ones, and BCNF makes sure every determinant is a key.</li>
   <li>The result here is seven small, well-keyed tables where each fact is stored in exactly one place.</li>
 </ul>
+
 </article>
 </main>
 <footer><div class="wrap">Written as a database design case study. The data and schema are simplified examples, not any company's actual systems.</div></footer>
