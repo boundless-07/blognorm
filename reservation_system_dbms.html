@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Database Normalization: Railway & Flight Reservation Systems</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Outfit:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-grad-start: #f8fafc;
+            --bg-grad-end: #e2e8f0;
+            --card-bg: rgba(255, 255, 255, 0.9);
+            --text-main: #1e293b;
+            --text-muted: #475569;
+            --primary: #0284c7;
+            --primary-glow: rgba(2, 132, 199, 0.25);
+            --secondary: #0d9488;
+            --accent: #f43f5e;
+            --border-color: rgba(255, 255, 255, 0.8);
+            --shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.08);
+            --bad-bg: #fff1f2;
+            --bad-border: #fca5a5;
+            --good-bg: #f0fdf4;
+            --good-border: #86efac;
+        }
+
+        body.dark-mode {
+            --bg-grad-start: #090d16;
+            --bg-grad-end: #0f172a;
+            --card-bg: rgba(30, 41, 59, 0.8);
+            --text-main: #f1f5f9;
+            --text-muted: #94a3b8;
+            --primary: #38bdf8;
+            --primary-glow: rgba(56, 189, 248, 0.25);
+            --secondary: #2dd4bf;
+            --accent: #fb7185;
+            --border-color: rgba(255, 255, 255, 0.08);
+            --shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.5);
+            --bad-bg: rgba(127, 29, 29, 0.25);
+            --bad-border: #991b1b;
+            --good-bg: rgba(20, 83, 45, 0.25);
+            --good-border: #166534;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+        }
+
+        /* Essential for smooth scrolling with a fixed top navbar */
+        html {
+            scroll-behavior: smooth;
+            scroll-padding-top: 140px;
+        }
+
+        body {
+            background: linear-gradient(135deg, var(--bg-grad-start), var(--bg-grad-end));
+            color: var(--text-main);
+            min-height: 100vh;
+            overflow-x: hidden;
+            transition: background 0.4s ease, color 0.4s ease;
+        }
+
+        /* Decorative Background Blob Shapes */
+        .blob {
+            position: fixed;
+            width: 550px;
+            height: 550px;
+            background: linear-gradient(180deg, var(--primary), var(--secondary));
+            filter: blur(90px);
+            border-radius: 50%;
+            z-index: -1;
+            opacity: 0.12;
+            animation: floatBlob 12s infinite alternate;
+        }
+        .blob-1 { top: -150px; left: -150px; }
+        .blob-2 { bottom: -150px; right: -150px; animation-delay: -6s; }
+
+        @keyframes floatBlob {
+            0% { transform: translate(0, 0) scale(1); }
+            100% { transform: translate(60px, 60px) scale(1.15); }
+        }
+
+        /* Fixed Top Navigation Bar with Dropdown Popups for Subtopics */
+        .top-navbar-fixed {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            background: var(--card-bg);
+            backdrop-filter: blur(16px);
+            border-bottom: 1px solid var(--border-color);
+            padding: 15px 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: var(--shadow);
+            z-index: 2000;
+        }
+
+        .nav-title-area {
+            font-family: 'Outfit', sans-serif;
+            font-weight: 800;
+            font-size: 1.1rem;
+            color: var(--text-main);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .nav-menu-container {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            position: relative;
+        }
+
+        /* Dropdown Menu Item */
+        .nav-dropdown {
+            position: relative;
+        }
+
+        .nav-drop-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-main);
+            font-weight: 600;
+            font-size: 0.95rem;
+            padding: 8px 16px;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .nav-drop-btn:hover, .nav-drop-btn.active {
+            background: var(--primary-glow);
+            color: var(--primary);
+        }
+
+        /* Popup Subtopic Content Box */
+        .nav-sub-popup {
+            position: absolute;
+            top: calc(100% + 12px);
+            left: 50%;
+            transform: translateX(-50%) translateY(10px);
+            background: var(--card-bg);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 12px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.15);
+            width: 260px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            z-index: 2100;
+        }
+
+        .nav-sub-popup.show {
+            opacity: 1;
+            pointer-events: auto;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        .nav-sub-popup a {
+            text-decoration: none;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            font-weight: 500;
+            padding: 8px 12px;
+            border-radius: 10px;
+            transition: all 0.2s ease;
+        }
+
+        .nav-sub-popup a:hover {
+            background: var(--primary);
+            color: white;
+            padding-left: 16px;
+        }
+
+        .theme-toggle-btn {
+            background: var(--card-bg);
+            color: var(--text-main);
+            border: 1px solid var(--border-color);
+            padding: 8px 16px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.85rem;
+            transition: all 0.2s ease;
+        }
+
+        .theme-toggle-btn:hover {
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+
+        /* Hero Section */
+        header {
+            padding: 14rem 2rem 6rem;
+            text-align: center;
+            max-width: 950px;
+            margin: 0 auto;
+        }
+
+        header h1 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 3.4rem;
+            font-weight: 800;
+            line-height: 1.25;
+            margin-bottom: 1.5rem;
+            background: linear-gradient(135deg, var(--text-main), var(--primary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        header p {
+            font-size: 1.25rem;
+            color: var(--text-muted);
+            line-height: 1.7;
+        }
+
+        /* Main Container Layout */
+        .page-container {
+            max-width: 1150px;
+            margin: 0 auto 6rem;
+            padding: 0 20px;
+            display: grid;
+            gap: 4rem;
+        }
+
+        /* Fancy Glassmorphism Section Cards */
+        .content-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--border-color);
+            border-radius: 28px;
+            padding: 4rem;
+            box-shadow: var(--shadow);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .content-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 8px;
+            height: 100%;
+            background: linear-gradient(180deg, var(--primary), var(--secondary));
+        }
+
+        h2 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 2.3rem;
+            font-weight: 700;
+            margin-bottom: 1.5rem;
+            color: var(--text-main);
+        }
+
+        h3 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--primary);
+            margin-top: 3rem;
+            margin-bottom: 1rem;
+        }
+
+        h4 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.15rem;
+            font-weight: 600;
+            color: var(--text-main);
+            margin-top: 2rem;
+            margin-bottom: 0.8rem;
+        }
+
+        p, li {
+            font-size: 1.1rem;
+            color: var(--text-muted);
+            line-height: 1.85;
+            margin-bottom: 1.2rem;
+        }
+
+        ul {
+            padding-left: 24px;
+        }
+
+        li {
+            margin-bottom: 0.8rem;
+        }
+
+        /* Detailed Highlight Banners */
+        .fancy-banner {
+            background: linear-gradient(135deg, var(--primary-glow), rgba(13, 148, 136, 0.1));
+            border-left: 4px solid var(--primary);
+            padding: 28px 32px;
+            border-radius: 0 16px 16px 0;
+            margin: 30px 0;
+        }
+
+        .fancy-banner strong {
+            color: var(--primary);
+            font-size: 1.2rem;
+            display: block;
+            margin-bottom: 10px;
+        }
+
+        .fancy-banner p {
+            margin: 0;
+            color: var(--text-main);
+        }
+
+        /* Visual Graphic Image */
+        .card-image {
+            width: 100%;
+            height: 420px;
+            object-fit: cover;
+            border-radius: 20px;
+            margin: 2.5rem 0;
+            box-shadow: 0 12px 35px rgba(0,0,0,0.1);
+        }
+
+        /* Modern Custom Tables */
+        .table-wrapper {
+            margin: 2.5rem 0;
+            border-radius: 16px;
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.03);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: var(--card-bg);
+        }
+
+        th, td {
+            padding: 18px 22px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+            font-size: 0.98rem;
+        }
+
+        th {
+            background: var(--primary);
+            color: white;
+            font-weight: 600;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        .bad-row td { background-color: var(--bad-bg); color: #b91c1c; border-color: var(--bad-border); }
+        .good-row td { background-color: var(--good-bg); color: #15803d; border-color: var(--good-border); }
+
+        .transformation-pill {
+            text-align: center;
+            font-weight: 700;
+            font-size: 1.1rem;
+            color: var(--primary);
+            margin: 25px 0;
+            padding: 14px;
+            background: var(--primary-glow);
+            border-radius: 35px;
+            border: 1px dashed var(--primary);
+        }
+
+        /* Team Section Card */
+        .team-card {
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: white;
+            border-radius: 28px;
+            padding: 4rem;
+            box-shadow: var(--shadow);
+            text-align: center;
+        }
+
+        .team-card h2 {
+            color: white;
+            margin-bottom: 2.5rem;
+        }
+
+        .team-grid {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .team-badge {
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            padding: 16px 28px;
+            border-radius: 50px;
+            font-weight: 600;
+            font-size: 1.1rem;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        @media (max-width: 900px) {
+            .top-navbar-fixed { padding: 12px 20px; flex-direction: column; gap: 10px; }
+            .nav-menu-container { flex-wrap: wrap; justify-content: center; }
+            header h1 { font-size: 2.4rem; }
+            .content-card { padding: 2.5rem 1.5rem; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Floating Background Glow Orbs -->
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+
+    <!-- Fixed Top Navigation Bar with Interactive Popup Menus -->
+    <nav class="top-navbar-fixed">
+        <div class="nav-title-area">
+            <span>📑</span> Navigation Menu
+        </div>
+        <div class="nav-menu-container">
+            
+            <!-- Dropdown 1: Part 1 -->
+            <div class="nav-dropdown" onmouseenter="showPopup(this)" onmouseleave="hidePopup(this)">
+                <button class="nav-drop-btn">Part 1: The Problem ▾</button>
+                <div class="nav-sub-popup">
+                    <a href="#problem" onclick="scrollToTarget(event, 'problem')">Overview & Context</a>
+                    <a href="#flat-file" onclick="scrollToTarget(event, 'flat-file')">1.1 Flat File Redundancy</a>
+                    <a href="#anomalies" onclick="scrollToTarget(event, 'anomalies')">1.2 System Anomalies</a>
+                </div>
+            </div>
+
+            <!-- Dropdown 2: Part 2 -->
+            <div class="nav-dropdown" onmouseenter="showPopup(this)" onmouseleave="hidePopup(this)">
+                <button class="nav-drop-btn">Part 2: Core Mechanics ▾</button>
+                <div class="nav-sub-popup">
+                    <a href="#mechanics" onclick="scrollToTarget(event, 'mechanics')">Core Mechanics Overview</a>
+                    <a href="#dependencies" onclick="scrollToTarget(event, 'dependencies')">2.1 Clean Entities</a>
+                    <a href="#keys" onclick="scrollToTarget(event, 'keys')">2.2 Functional Dependencies</a>
+                    <a href="#keys-detail" onclick="scrollToTarget(event, 'keys-detail')">2.3 Primary & Foreign Keys</a>
+                </div>
+            </div>
+
+            <!-- Dropdown 3: Part 3 -->
+            <div class="nav-dropdown" onmouseenter="showPopup(this)" onmouseleave="hidePopup(this)">
+                <button class="nav-drop-btn">Part 3: Normalization ▾</button>
+                <div class="nav-sub-popup">
+                    <a href="#solution" onclick="scrollToTarget(event, 'solution')">Normalization Overview</a>
+                    <a href="#second-nf" onclick="scrollToTarget(event, 'second-nf')">3.1 First Normal Form (1NF)</a>
+                    <a href="#third-nf" onclick="scrollToTarget(event, 'third-nf')">3.2 Second Normal Form (2NF)</a>
+                    <a href="#third-nf-detail" onclick="scrollToTarget(event, 'third-nf-detail')">3.3 Third Normal Form (3NF)</a>
+                </div>
+            </div>
+
+            <!-- Dropdown 4: Outcomes & Team -->
+            <div class="nav-dropdown" onmouseenter="showPopup(this)" onmouseleave="hidePopup(this)">
+                <button class="nav-drop-btn">Conclusion & Team ▾</button>
+                <div class="nav-sub-popup">
+                    <a href="#outcomes" onclick="scrollToTarget(event, 'outcomes')">Expected Outcomes</a>
+                    <a href="#team" onclick="scrollToTarget(event, 'team')">Team Members</a>
+                </div>
+            </div>
+
+            <button class="theme-toggle-btn" onclick="toggleTheme()" id="theme-btn">🌙 Dark Mode</button>
+        </div>
+    </nav>
+
+    <!-- Header Hero -->
+    <header>
+        <h1>Database Normalization in Reservation Systems</h1>
+        <p>A comprehensive, deep-dive academic study analyzing how high-concurrency reservation platforms like IRCTC and commercial airlines utilize database normalization to eliminate redundancy, prevent system anomalies, and safeguard passenger data consistency.</p>
+    </header>
+
+    <!-- Main Content Grid -->
+    <div class="page-container">
+        
+        <!-- PART 1: THE PROBLEM -->
+        <section class="content-card" id="problem">
+            <h2>Part 1: The Problem of Poor Database Design</h2>
+            <p>Online reservation ecosystems like Indian Railway Catering and Tourism Corporation (IRCTC) or major international flight booking engines operate under intense pressure. Millions of travelers query schedules, inspect seat availability, execute financial transactions, and process cancellations concurrently every single second. To prevent infrastructural failure, the underlying database management system (DBMS) must exhibit flawless structural integrity and rapid query execution speeds.</p>
+            <p>However, when a database is poorly engineered, rushed, or structured without formal rules, it introduces catastrophic bottlenecks. The primary objective of this detailed research study is to analyze how database normalization can be applied in an online reservation system such as IRCTC and identify problems caused by poor database design[span_0](start_span)[span_0](end_span).</p>
+
+            <h3 id="flat-file">1.1 The Single Spreadsheet Trap (Data Redundancy)</h3>
+            <p>When software teams build a quick prototype or rely on unorganized record-keeping, they often commit a classic architecture mistake: storing all system interactions inside a single, flat master table. In this unnormalized environment, every time a passenger reserves a ticket, the system logs the Passenger Name, Age, PNR, Train Number, Train Name, Source Station, Destination Station, and Fare all in one continuous row.</p>
+            <p>Consider a popular high-capacity transit line like the <em>Rajdhani Express</em> carrying 1,200 passengers on a single journey. In a poorly designed flat file, the exact same train name, route codes, and operating schedules are typed out, duplicated, and saved 1,200 separate times! This wasteful repetition is known as <strong>Data Redundancy</strong>. It consumes massive storage space and causes search queries to lag significantly.</p>
+
+            <div class="fancy-banner">
+                <strong>Why Redundancy Destroys System Reliability</strong>
+                <p>When identical real-world information is duplicated across thousands of rows, the system loses a single source of truth. Minor updates become complex multi-step operations that frequently leave databases fractured.</p>
+            </div>
+
+            <h3 id="anomalies">1.2 Understanding Data Anomalies</h3>
+            <p>Data redundancy is not merely a storage inefficiency; it is the direct catalyst for three critical operational failures called database anomalies. These anomalies can bring down active reservation workflows:</p>
+            
+            <h4>A. Insertion Anomalies</h4>
+            <p>An insertion anomaly occurs when the database architecture forces a dependency where you cannot insert new information because an unrelated field is missing or unpopulated. 
+            <em>Real-world Example:</em> Suppose Indian Railways introduces a brand-new holiday special route. In an unnormalized system where train data is tightly bound to passenger booking rows, the administration cannot save this new train into the database until at least one customer actually books a ticket on it. The train's existence is incorrectly held hostage by whether a human has booked a seat yet!</p>
+
+            <h4>B. Update Anomalies</h4>
+            <p>An update anomaly occurs when a single real-world modification requires altering hundreds or thousands of redundant rows manually. 
+            <em>Real-world Example:</em> If the scheduled departure time of a train shifts by 30 minutes due to maintenance, the database server must locate and edit all 1,200 passenger entries. If network congestion or server load causes a timeout halfway through the operation, 600 passengers will retain the old departure time while 600 see the new time. This split-brain scenario destroys data consistency and creates severe customer confusion at boarding platforms.</p>
+
+            <h4>C. Deletion Anomalies</h4>
+            <p>A deletion anomaly occurs when removing a transient record unintentionally wipes out completely independent, permanent information. 
+            <em>Real-world Example:</em> If the sole passenger booked on a regional express train cancels their ticket and their row is deleted from the flat table, the database wipes out every trace of the train's existence, erasing its route and schedule data permanently.</p>
+
+        </section>
+
+        <!-- PART 2: CORE MECHANICS -->
+        <section class="content-card" id="mechanics">
+            <h2>Part 2: Core Mechanics: Entities, Dependencies & Keys</h2>
+            <p>To cure the systemic failures of flat file storage, we must transition from chaotic unstructured records to a rigorous relational database model. This transformation requires breaking down complex ticket documents into clean, modular entities, establishing mathematical dependency rules, and securing relationships using primary and foreign keys.</p>
+
+            <h3 id="dependencies">2.1 Breaking Down into Clean Entities</h3>
+            <p>An entity represents a distinct real-world concept, object, or event that possesses its own unique set of descriptive properties (attributes). When you examine a physical railway ticket or digital flight boarding pass, it appears as a single unified piece of paper. However, beneath the user interface, the underlying data spans four entirely separate operational domains that must be decoupled into independent database tables:</p>
+            <ul>
+                <li>👨‍💼 <strong>Passenger Entity:</strong> Captures data belonging exclusively to the human traveler profile, including unique identification numbers, full names, age brackets, gender records, and emergency contact phone numbers.</li>
+                <li>🚆 <strong>Train/Flight Entity:</strong> Captures data belonging exclusively to the physical vehicle and its scheduling profile, including unique train numbers, operator names, bogie compositions, and maximum seating capacities.</li>
+                <li>🚉 <strong>Station Entity:</strong> Captures geographical routing data points, maintaining standardized station codes, metropolitan city designations, state boundaries, and junction classifications.</li>
+                <li>🎫 <strong>Booking/Transaction Entity:</strong> Captures transactional lifecycle events tying a specific traveler to a specific journey, including PNR confirmation numbers, booking timestamps, assigned coach seats, and payment status verification logs.</li>
+            </ul>
+
+            <h3 id="keys">2.2 Functional Dependencies (The Laws of Data Ownership)</h3>
+            <p>Functional Dependency (FD) serves as the core mathematical foundation for designing relational databases. It governs data ownership and validates whether relationships between columns are logically sound. Formally defined, attribute set <em>Y</em> is functionally dependent on attribute set <em>X</em> (written as \(X \rightarrow Y\)) if and only if each value of <em>X</em> precisely determines one and only one value of <em>Y</em> at any given time.</p>
+            
+            <div class="fancy-banner">
+                <strong>Practical Application in Reservation Networks:</strong>
+                <p>Consider the functional dependency rule: <code>Train_No \rightarrow [Train_Name, Total_Capacity]</code>. If an application queries the database with Thakur / IRCTC train key <code>12951</code>, the DBMS is mathematically guaranteed to retrieve <code>Rajdhani Express</code>. Conversely, a passenger's first name cannot function as a determinant because multiple travelers share identical names across different carriages.</p>
+            </div>
+
+            <h3 id="keys-detail">2.3 Primary and Foreign Keys: Building Relational Bridges</h3>
+            <p>Once raw data attributes are properly grouped into dedicated tables representing our core entities, they must remain linked together so that users can view holistic travel itineraries. We achieve this seamless interconnection using relational keys:</p>
+            <ul>
+                <li><strong>Primary Key (PK):</strong> A strict column constraint ensuring absolute uniqueness across every row in a table. No two booking records can share the same PNR, and no two trains can share the same Train Number. This prevents duplicate data entry at the database kernel level.</li>
+                <li><strong>Foreign Key (FK):</strong> A designated reference field placed inside a child table that points directly to the Primary Key of a parent table. Instead of redundantly storing text strings like "Rajdhani Express" across millions of individual passenger rows, a booking entry simply contains the numeric Foreign Key reference <code>12951</code>. The DBMS uses this lightweight link to perform instant relational joins, optimizing storage and memory performance.</li>
+            </ul>
+
+            
+        </section>
+
+        <!-- PART 3: THE SOLUTION -->
+        <section class="content-card" id="solution">
+            <h2>Part 3: The Solution: Database Normalization Steps</h2>
+            <p>Normalization is a rigorous, step-by-step mathematical refinement process used to structure database relations. By progressing systematically through Normal Forms (1NF, 2NF, and 3NF), we eliminate redundancy, eradicate anomalies, and secure platform reliability.</p>
+
+            <h3 id="second-nf">3.1 First Normal Form (1NF): Achieving Atomicity</h3>
+            <p><strong>The Core Rule:</strong> Every cell in a table must contain a single, indivisible (atomic) value. Repeating groups, arrays, or comma-separated lists within a single cell are strictly prohibited.</p>
+            <p><em>The Problem:</em> In unnormalized logs, a family booking multiple seats under one PNR might store all traveler names inside a single text box, making it impossible to query or update individual passengers cleanly.</p>
+            
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr><th>PNR (Key)</th><th>Passenger_Names (Violates 1NF - Multiple values in one cell)</th><th>Train_No</th></tr>
+                    </thead>
+                    <tr class="bad-row">
+                        <td>894321098</td><td>Sofiya,Lakshya,Aaditya</td><td>12951</td></tr>
+                </table>
+            </div>
+
+            <div class="transformation-pill">⬇️ Apply 1NF: Flatten repeating groups into individual atomic rows ⬇️</div>
+
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr><th>PNR</th><th>Passenger_Name (Atomic & Clean)</th><th>Train_No</th></tr>
+                    </thead>
+                    <tr class="good-row"><td>894321098</td><td>Sofiya</td><td>12951</td></tr>
+                    <tr class="good-row"><td>894321098</td><td>Lakshya</td><td>12951</td></tr>
+                    <tr class="good-row"><td>894321098</td><td>Aaditya</td><td>12951</td></tr>
+                </table>
+            </div>
+
+            <h3 id="third-nf">3.2 Second Normal Form (2NF): Removing Partial Dependencies</h3>
+            <p><strong>The Core Rule:</strong> The table must already satisfy 1NF, and all non-key attributes must depend functionally on the <em>entire</em> primary key—not just a fragment of a composite key.</p>
+            <p><em>The Solution:</em> When a table uses a composite primary key like <code>[PNR + Passenger_ID]</code>, columns like <code>Train_Name</code> only depend on the PNR portion, not the individual passenger ID. We resolve this partial dependency by extracting train attributes into a standalone table, curing update and insertion anomalies instantly.</p>
+
+            <h3 id="third-nf-detail">3.3 Third Normal Form (3NF): Eliminating Transitive Dependencies</h3>
+            <p><strong>The Core Rule:</strong> The table must be in 2NF, and all non-key attributes must depend directly on the primary key with no transitive chain reactions (i.e., Column A leading to Column B, which in turn leads to Column C).</p>
+            <p>Reaching Third Normal Form establishes the gold standard for enterprise transaction processing systems like IRCTC. Updates to train schedules or station names occur in exactly one master location, ensuring absolute consistency for passenger profiles, booking logs, and seat assignments without risk of data corruption.</p>
+
+            
+            <div class="fancy-banner" id="outcomes">
+                <strong>Summary of Expected Educational Outcomes:</strong>
+                <ul style="margin-top: 10px; margin-left: 20px; color: var(--text-main);">
+                    <li><strong>Identify Entities & Dependencies:</strong> Students successfully recognize operational objects and establish accurate functional ownership rules across reservation systems.</li>
+                    <li><strong>Analyze Redundancy & Anomalies:</strong> Students trace how unnormalized flat files spawn storage waste and trigger insertion, update, and deletion errors.</li>
+                    <li><strong>Propose Normalized Relations:</strong> Students restructure database architectures cleanly through 1NF, 2NF, and 3NF protocol standards.</li>
+                    <li><strong>Ensure Data Consistency:</strong> Students explain how proper schema design safeguards passenger profiles, booking logs, and seat inventory against data corruption.</li>
+                </ul>
+            </div>
+        </section>
+
+        <!-- Team Members Section -->
+        <section class="team-card" id="team">
+            <h2>Team Members</h2>
+            <div class="team-grid">
+                <div class="team-badge">👤 Sofiya Gowda (Roll no 44)</div>
+                <div class="team-badge">👤 Lakshya Gulati (Roll no 46)</div>
+                <div class="team-badge">👤 Aaditya Gupta (Roll no 47)</div>
+            </div>
+        </section>
+
+    </div>
+
+    <!-- Interactive Scripts for Popup Menu & Smooth Scrolling -->
+    <script>
+        // Toggle popup menu visibility on hover
+        function showPopup(element) {
+            const popup = element.querySelector('.nav-sub-popup');
+            if (popup) popup.classList.add('show');
+            const btn = element.querySelector('.nav-drop-btn');
+            if (btn) btn.classList.add('active');
+        }
+
+        function hidePopup(element) {
+            const popup = element.querySelector('.nav-sub-popup');
+            if (popup) popup.classList.remove('show');
+            const btn = element.querySelector('.nav-drop-btn');
+            if (btn) btn.classList.remove('active');
+        }
+
+        // Smooth scroll handler that closes any open popup after click
+        function scrollToTarget(event, targetId) {
+            event.preventDefault();
+            const targetElement = document.getElementById(targetId);
+            if (targetElement) {
+                targetElement.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'start'
+                });
+            }
+            // Hide all popups after clicking
+            document.querySelectorAll('.nav-sub-popup').forEach(p => p.classList.remove('show'));
+            document.querySelectorAll('.nav-drop-btn').forEach(b => b.classList.remove('active'));
+        }
+
+        // Toggle Dark / Light Mode
+        function toggleTheme() {
+            const body = document.body;
+            const btn = document.getElementById('theme-btn');
+            body.classList.toggle('dark-mode');
+            
+            if(body.classList.contains('dark-mode')) {
+                btn.innerHTML = '☀️ Light Mode';
+            } else {
+                btn.innerHTML = '🌙 Dark Mode';
+            }
+        }
+    </script>
+</body>
+</html>
